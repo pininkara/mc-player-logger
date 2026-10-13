@@ -37,11 +37,19 @@ tasks.named('processResources', ProcessResources) {
     }
 }
 
+// This executable verification program is separate from JUnit/TestNG test sources.
+sourceSets {
+    verification {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
 tasks.register('verifyLogWriter', JavaExec) {
     group = 'verification'
     description = 'Checks CSV append, escaping, day rollover and configuration.'
-    dependsOn tasks.named('testClasses')
-    classpath = sourceSets.test.runtimeClasspath
+    dependsOn tasks.named('verificationClasses')
+    classpath = sourceSets.verification.runtimeClasspath
     mainClass = 'dev.presencelogger.LogWriterVerification'
 }
 
