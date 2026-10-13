@@ -1,0 +1,32 @@
+# Place this file beside build.gradle, then run: docker compose run --rm build
+services:
+  build:
+    image: eclipse-temurin:21-jdk
+    working_dir: /build
+    environment:
+      GRADLE_USER_HOME: /gradle-cache
+    volumes:
+      - type: bind
+        source: .
+        target: /source
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: .
+        target: /output
+        bind:
+          create_host_path: false
+      - gradle-cache:/gradle-cache
+    command:
+      - sh
+      - -ec
+      - |
+        cp -R /source/src /source/gradle /build/
+        cp /source/gradlew /source/build.gradle /source/settings.gradle /source/gradle.properties /build/
+        sh ./gradlew clean build --no-daemon --console=plain
+        cp /build/build/libs/player-presence-logger-*.jar /output/
+        printf 'Build complete. JAR copied to the host project directory.\n'
+
+volumes:
+  gradle-cache:

@@ -1,0 +1,45 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = mod_version
+group = 'dev.presencelogger'
+
+base { archivesName = 'player-presence-logger' }
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neo_version
+    runs {
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        client { client() }
+    }
+    mods {
+        player_presence_logger { sourceSet sourceSets.main }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named('processResources', ProcessResources) {
+    inputs.property 'mod_version', project.mod_version
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand mod_version: project.mod_version
+    }
+}
+
+tasks.register('verifyLogWriter', JavaExec) {
+    group = 'verification'
+    description = 'Checks CSV append, escaping, day rollover and configuration.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.presencelogger.LogWriterVerification'
+}
+
+tasks.named('check') { dependsOn tasks.named('verifyLogWriter') }

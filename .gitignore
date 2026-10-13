@@ -1,0 +1,9 @@
+.gradle/
+build/
+runs/
+run/
+.idea/
+.vscode/
+*.iml
+*.log
+/player-presence-logger-*.jar
