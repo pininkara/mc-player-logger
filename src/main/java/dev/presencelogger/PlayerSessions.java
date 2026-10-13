@@ -1,6 +1,5 @@
 package dev.presencelogger;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -19,8 +18,11 @@ public final class PlayerSessions {
         if (login == null) {
             return "unknown";
         }
-        long milliseconds = Duration.between(login, timestamp).toMillis();
-        return BigDecimal.valueOf(milliseconds, 3).toPlainString() + "s";
+        long minutes = Math.floorDiv(Duration.between(login, timestamp).getSeconds(), 60);
+        if (minutes < 60) {
+            return minutes + "min";
+        }
+        return (minutes / 60) + "h" + (minutes % 60) + "min";
     }
 
     public synchronized void clear() {

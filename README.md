@@ -18,7 +18,7 @@ Minecraft Java **1.21.1 / NeoForge** 的专用服务端 Mod，按服务器启动
 
 运行环境：Java 21、Minecraft 1.21.1、NeoForge 21.1 分支。构建配置使用 21.1.252；较旧版本尚未实机验证。
 
-1. 将 `player-presence-logger-1.1.0.jar` 放进**服务器**的 `mods` 文件夹。
+1. 将 `player-presence-logger-1.1.1.jar` 放进**服务器**的 `mods` 文件夹。
 2. 启动服务器。首次启动自动创建 `config/player-presence-logger.properties`。
 3. 玩家进入或离开后，到 `logs/player-presence` 查看当前启动会话的 CSV 文件。
 
@@ -44,16 +44,17 @@ timestamp,event,player,uuid,info
 2026-10-12T20:35:24.123+08:00,"LOGIN","Steve",00000000-0000-0000-0000-000000000001,""
 2026-10-12T20:36:00.000+08:00,"ADVANCEMENT","Steve",00000000-0000-0000-0000-000000000001,"Stone Age [minecraft:story/mine_stone]"
 2026-10-12T20:37:00.000+08:00,"COMMAND","Steve",00000000-0000-0000-0000-000000000001,"/say hello"
-2026-10-12T21:06:10.456+08:00,"LOGOUT","Steve",00000000-0000-0000-0000-000000000001,"1846.333s"
+2026-10-12T21:06:10.456+08:00,"LOGOUT","Steve",00000000-0000-0000-0000-000000000001,"30min"
 ```
 
 | event | info |
 | --- | --- |
 | LOGIN | 空字符串 |
-| LOGOUT | 本次下线时间减去本次上线时间，单位秒、保留三位小数，例如 `1846.333s` |
+| LOGOUT | 本次下线时间减去本次上线时间，先向下取整为总分钟数；不足 60 分钟显示 `30min`，达到 60 分钟显示 `1h0min`、`3h10min` |
 | ADVANCEMENT | 进度标题及完整资源 ID；没有显示标题的进度使用资源 ID |
 | COMMAND | 完整命令及参数，带前导 `/` |
 
+- 不足一分钟显示 `0min`；恰好一小时显示 `1h0min`；秒和毫秒不四舍五入，小时数不按天折算。
 - 在线时长按 UUID 区分，重新上线后重新计时；若没有对应上线事件，退出时记为 `unknown`。
 - 进度记录的是完成整个进度的事件，包括配方解锁等隐藏进度；不会把单项条件变化当成已获得进度。
 - 进度标题在服务端可能呈现为翻译键，例如 `advancements.story.mine_stone.title`；资源 ID 始终保留，方便准确识别。
@@ -79,7 +80,7 @@ chmod +x gradlew
 ```
 
 构建首次运行需要联网下载 Gradle、NeoForge 和 Minecraft 开发依赖。
-成品位置：`build/libs/player-presence-logger-1.1.0.jar`。
+成品位置：`build/libs/player-presence-logger-1.1.1.jar`。
 构建时会执行文件写入验证，检查启动文件名、跨午夜持续写入、重启与同名碰撞、四种事件的 CSV 信息、在线时长、多玩家与重新上线、配置和 I/O 错误。
 
 开发测试可用 `./gradlew runServer` 和 `./gradlew runClient`。
@@ -103,7 +104,7 @@ docker compose run --rm build
 
 1. 打开仓库的 **Actions** 页面，选择 **Build and Release JAR**。
 2. 点击 **Run workflow**，选择要构建的分支（默认 `master`）。
-3. 输入 `version`，例如 `1.1.0` 或 `1.1.1-rc.1`，无需加 `v`。
+3. 输入 `version`，例如 `1.1.1` 或 `1.1.2-rc.1`，无需加 `v`。
 4. 如需预发布，勾选 `prerelease`，然后运行。
 5. 编译和文件写入验证全部通过后，工作流创建 `v<version>` 标签和 Release，并上传 JAR。
 

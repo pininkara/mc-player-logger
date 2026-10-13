@@ -31,23 +31,33 @@ public final class LogWriterVerification {
             writer.append(startedAt.plusSeconds(3), "COMMAND", "玩家,\"A\"", steve,
                     "/say \"hello, world\"");
             String duration = sessions.logoutInfo(steve, startedAt.plusMillis(3723123));
-            require(duration.equals("3723.123s"), "logout time minus login time");
+            require(duration.equals("1h2min"), "logout time minus login time");
             writer.append(startedAt.plusMillis(3723123), "LOGOUT", "玩家,\"A\"", steve, duration);
-            require(sessions.logoutInfo(alex, startedAt.plusMillis(6001)).equals("5.001s"),
+            require(sessions.logoutInfo(alex, startedAt.plusMillis(6001)).equals("0min"),
                     "players have independent sessions");
             require(sessions.logoutInfo(steve, startedAt.plusSeconds(4000)).equals("unknown"),
                     "logout removes the session");
             sessions.login(steve, startedAt.plusSeconds(4000));
-            require(sessions.logoutInfo(steve, startedAt.plusMillis(4000500)).equals("0.500s"),
+            require(sessions.logoutInfo(steve, startedAt.plusMillis(4000500)).equals("0min"),
                     "reconnect measures only the new session");
             sessions.login(steve, startedAt);
             sessions.clear();
             require(sessions.logoutInfo(steve, startedAt).equals("unknown"), "server restart clears sessions");
+            checkDuration(sessions, steve, startedAt, 0, "0min");
+            checkDuration(sessions, steve, startedAt, 59_999, "0min");
+            checkDuration(sessions, steve, startedAt, 60_000, "1min");
+            checkDuration(sessions, steve, startedAt, 1_859_999, "30min");
+            checkDuration(sessions, steve, startedAt, 3_599_999, "59min");
+            checkDuration(sessions, steve, startedAt, 3_600_000, "1h0min");
+            checkDuration(sessions, steve, startedAt, 3_659_999, "1h0min");
+            checkDuration(sessions, steve, startedAt, 11_459_999, "3h10min");
+            checkDuration(sessions, steve, startedAt, 86_759_999, "24h5min");
             String first = Files.readString(writer.file(), StandardCharsets.UTF_8);
             require(first.lines().count() == 5, "all four event types append under one header");
             require(first.contains("\"玩家,\"\"A\"\"\""), "UTF-8 and escaped player name");
             require(first.contains("\"/say \"\"hello, world\"\"\""), "command info preserves commas and quotes");
             require(first.contains("\"Stone Age [minecraft:story/mine_stone]\""), "advancement info");
+            require(first.contains("\"1h2min\""), "formatted duration is written to CSV");
             require(first.contains("2026-10-13T"), "timestamps cross midnight in the same file");
             try (var files = Files.list(logs)) {
                 require(files.count() == 1, "midnight does not rotate the file");
@@ -88,6 +98,13 @@ public final class LogWriterVerification {
                 for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p);
             }
         }
+    }
+
+    private static void checkDuration(PlayerSessions sessions, UUID player, Instant login,
+                                      long milliseconds, String expected) {
+        sessions.login(player, login);
+        require(sessions.logoutInfo(player, login.plusMillis(milliseconds)).equals(expected),
+                "duration floor/format for " + milliseconds + "ms");
     }
 
     private static void require(boolean condition, String message) {
