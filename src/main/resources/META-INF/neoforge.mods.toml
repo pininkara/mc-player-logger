@@ -7,7 +7,7 @@ modId="player_presence_logger"
 version="${mod_version}"
 displayName="Player Presence Logger"
 description='''
-Dedicated-server-only player login/logout timestamp logger for Minecraft 1.21.1.
+Dedicated-server-only player login, logout, advancement and command logger for Minecraft 1.21.1.
 Clients do not need this mod. Installing it on a client has no effect.
 '''
 

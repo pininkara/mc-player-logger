@@ -1,15 +1,15 @@
 # Player Presence Logger
 
-Minecraft Java **1.21.1 / NeoForge** 的专用服务端 Mod，用文件记录玩家上线和下线时间。
+Minecraft Java **1.21.1 / NeoForge** 的专用服务端 Mod，按服务器启动会话记录玩家上线、下线、获得进度和使用命令。
 
 ## 行为
 
 - 仅在专用服务端启用；入口标注 `@Mod(dist = Dist.DEDICATED_SERVER)`。
 - 客户端无需安装；即使安装，也不会初始化日志功能、创建配置或写日志。单人游戏、局域网开放的内置服务器也不会启用。
-- 使用 NeoForge 的 `PlayerLoggedInEvent` 和 `PlayerLoggedOutEvent`；不需要客户端自定义网络通信。
-- 默认将记录追加到服务器目录下的 `logs/player-presence/YYYY-MM-DD.csv`。
-- UTF-8 编码，记录时间（精确到毫秒并含 UTC 偏移）、LOGIN/LOGOUT、玩家名、UUID。
-- 每条事件写入后关闭文件，重启不会覆盖已有记录。文件按配置时区的日期分组。
+- 使用 NeoForge 的登录、退出、进度完成和命令事件；不需要客户端自定义网络通信。
+- 每次服务器启动创建 `logs/player-presence/YYYY-MM-DD_HH-mm-ss.SSS.csv`，文件名使用配置时区的启动时间；本次运行一直写入这一文件，包括跨午夜。重启后创建新文件，同名时间戳自动加序号，历史文件不覆盖。
+- UTF-8 CSV，列为 `timestamp,event,player,uuid,info`，时间精确到毫秒并含 UTC 偏移。
+- 每条事件写入后关闭文件，将 Java 缓冲区中的内容写出。
 - 使用的是服务器检测到登录/退出事件的时间。掉线、超时、踢出等情况在服务器确认玩家离开时记录。
 - 服务器进程崩溃、断电或被强制终止时，无法记录尚未触发的退出事件。
 - 写文件失败会写入服务器错误日志，不会阻止玩家进出；失败的记录不会自动重试。
@@ -18,9 +18,9 @@ Minecraft Java **1.21.1 / NeoForge** 的专用服务端 Mod，用文件记录玩
 
 运行环境：Java 21、Minecraft 1.21.1、NeoForge 21.1 分支。构建配置使用 21.1.252；较旧版本尚未实机验证。
 
-1. 将 `player-presence-logger-1.0.0.jar` 放进**服务器**的 `mods` 文件夹。
+1. 将 `player-presence-logger-1.1.0.jar` 放进**服务器**的 `mods` 文件夹。
 2. 启动服务器。首次启动自动创建 `config/player-presence-logger.properties`。
-3. 玩家进入或离开后，到 `logs/player-presence` 查看当天的 CSV 文件。
+3. 玩家进入或离开后，到 `logs/player-presence` 查看当前启动会话的 CSV 文件。
 
 只下载源码时，请先按下面的步骤编译。源码 ZIP 本身不能放进 `mods` 文件夹。
 
@@ -37,15 +37,29 @@ timeZone=Asia/Shanghai
 - `timeZone`：默认 `Asia/Shanghai`（UTC+8），也可设为 `Asia/Singapore`、`UTC` 等 Java 支持的时区。
 - 配置无效时，该次启动使用默认设置，并在控制台输出错误。
 
-示例文件 `logs/player-presence/2026-10-12.csv`：
+示例文件 `logs/player-presence/2026-10-12_20-30-00.000.csv`：
 
 ```csv
-timestamp,event,player,uuid
-2026-10-12T20:35:24.123+08:00,"LOGIN","Steve",00000000-0000-0000-0000-000000000001
-2026-10-12T21:06:10.456+08:00,"LOGOUT","Steve",00000000-0000-0000-0000-000000000001
+timestamp,event,player,uuid,info
+2026-10-12T20:35:24.123+08:00,"LOGIN","Steve",00000000-0000-0000-0000-000000000001,""
+2026-10-12T20:36:00.000+08:00,"ADVANCEMENT","Steve",00000000-0000-0000-0000-000000000001,"Stone Age [minecraft:story/mine_stone]"
+2026-10-12T20:37:00.000+08:00,"COMMAND","Steve",00000000-0000-0000-0000-000000000001,"/say hello"
+2026-10-12T21:06:10.456+08:00,"LOGOUT","Steve",00000000-0000-0000-0000-000000000001,"1846.333s"
 ```
 
-UUID 是主要身份标识。上线、下线可以跨日期，查找时请同时查看对应日期的文件。
+| event | info |
+| --- | --- |
+| LOGIN | 空字符串 |
+| LOGOUT | 本次下线时间减去本次上线时间，单位秒、保留三位小数，例如 `1846.333s` |
+| ADVANCEMENT | 进度标题及完整资源 ID；没有显示标题的进度使用资源 ID |
+| COMMAND | 完整命令及参数，带前导 `/` |
+
+- 在线时长按 UUID 区分，重新上线后重新计时；若没有对应上线事件，退出时记为 `unknown`。
+- 进度记录的是完成整个进度的事件，包括配方解锁等隐藏进度；不会把单项条件变化当成已获得进度。
+- 进度标题在服务端可能呈现为翻译键，例如 `advancements.story.mine_stone.title`；资源 ID 始终保留，方便准确识别。
+- 命令只记录来源为玩家的服务端命令，控制台/RCON/命令方块的命令不记录。记录发生在解析后、执行前，因此不代表命令一定执行成功。
+- 处于本监听器之前被取消的命令不记录。Mod 不改变命令内容、权限或执行结果。
+- 命令参数原样保存；CSV 字段中的逗号、引号等按 CSV 规则转义。
 
 ## 从源码构建
 
@@ -65,8 +79,8 @@ chmod +x gradlew
 ```
 
 构建首次运行需要联网下载 Gradle、NeoForge 和 Minecraft 开发依赖。
-成品位置：`build/libs/player-presence-logger-1.0.0.jar`。
-构建时会执行文件写入验证，检查追加、重启保留、跨天、UTF-8、CSV 转义、配置与 I/O 错误。
+成品位置：`build/libs/player-presence-logger-1.1.0.jar`。
+构建时会执行文件写入验证，检查启动文件名、跨午夜持续写入、重启与同名碰撞、四种事件的 CSV 信息、在线时长、多玩家与重新上线、配置和 I/O 错误。
 
 开发测试可用 `./gradlew runServer` 和 `./gradlew runClient`。
 启动开发服务器前请自行阅读并接受 Minecraft EULA；项目不会替你接受。
@@ -89,7 +103,7 @@ docker compose run --rm build
 
 1. 打开仓库的 **Actions** 页面，选择 **Build and Release JAR**。
 2. 点击 **Run workflow**，选择要构建的分支（默认 `master`）。
-3. 输入 `version`，例如 `1.0.0` 或 `1.0.1-rc.1`，无需加 `v`。
+3. 输入 `version`，例如 `1.1.0` 或 `1.1.1-rc.1`，无需加 `v`。
 4. 如需预发布，勾选 `prerelease`，然后运行。
 5. 编译和文件写入验证全部通过后，工作流创建 `v<version>` 标签和 Release，并上传 JAR。
 
@@ -106,9 +120,11 @@ Release 的标签指向本次实际构建的提交。已有同名标签时拒绝
 
 1. 启动专用服务器，用客户端连接、退出、重新连接：每次应各产生一条 LOGIN/LOGOUT。
 2. 踢出玩家后检查 LOGOUT；正常停止服务器后检查仍在线玩家的退出记录。
-3. 重启服务器，确认历史记录保留且表头未重复。
-4. 在客户端安装同一 JAR，运行单人世界，确认不创建本 Mod 的配置和日志。
-5. 使用未安装本 Mod 的 NeoForge 客户端连接，确认可以正常加入。
+3. 跨午夜继续运行，确认仍写入同一 CSV；重启后确认创建新 CSV、历史文件保留。
+4. 获得进度、使用带参数的命令，检查 ADVANCEMENT/COMMAND 的 info；退出后检查时长。
+5. 使用不同玩家同时在线及退出，确认在线时长各自独立。
+6. 在客户端安装同一 JAR，运行单人世界，确认不创建本 Mod 的配置和日志。
+7. 使用未安装本 Mod 的 NeoForge 客户端连接，确认可以正常加入。
 
 ## 参考
 
